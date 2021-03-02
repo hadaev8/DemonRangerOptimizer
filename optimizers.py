@@ -792,7 +792,8 @@ class HyperRangerMod(Optimizer):
                  step_per_epoch=None,
                  weight_decay=0,
                  use_gc=True,
-                 use_diffgrad=False):
+                 use_diffgrad=False,
+                 dropout=0.0):
 
         # betas = (beta1 for first order moments, beta2 for second order moments, beta3 for AdaMod) # set beta3 = 0 to disable AdaMod
         # nus = (nu1,nu2) (for quasi hyperbolic momentum)
@@ -814,6 +815,7 @@ class HyperRangerMod(Optimizer):
         # weight decay = decorrelated weight decay value
         # use_gc = bool to determine whether to use gradient centralization or not.
         # use_diffgrad = bool to determine whether to use diffgrad or not.
+        # dropout = learning rate dropout, probability of setting learning rate to zero
 
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -841,6 +843,8 @@ class HyperRangerMod(Optimizer):
             raise ValueError("Invalid p parameter: {}".format(p))
         if not 0.0 <= alpha <= 1.0:
             raise ValueError("Invalid alpha parameter: {}".format(alpha))
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError("Invalid dropout parameter: {}".format(dropout))
 
         self.AdaMod_bias_correct = AdaMod_bias_correct
         self.nostalgia = nostalgia
@@ -865,7 +869,8 @@ class HyperRangerMod(Optimizer):
                         gamma=gamma,
                         p=p,
                         hypergrad_lr=hypergrad_lr,
-                        weight_decay=weight_decay)
+                        weight_decay=weight_decay,
+                        dropout=dropout)
         super(HyperRangerMod, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -993,6 +998,11 @@ class HyperRangerMod(Optimizer):
                         torch.min(n, n_avg_, out=n)
                     else:
                         torch.min(n, n_avg, out=n)
+
+                if group['dropout'] > 0.0:
+                    mask = torch.bernoulli(
+                        torch.ones_like(p.data) - group['dropout'])
+                    n = n * mask
 
                 p.data.add_(-n * momentum)
 
